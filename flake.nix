@@ -26,26 +26,27 @@
       ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
       pkgsForEach = nixpkgs.legacyPackages;
+
+      toolchainFor =
+        system:
+        fenix.packages.${system}.fromToolchainFile {
+          file = ./rust-toolchain.toml;
+          sha256 = "sha256-h+t2xTBz5yt2YIO+1VMIIGlCU7gyp2LYOFvaV1nwOXU=";
+        };
     in
     {
       packages = forEachSystem (
         system:
         let
           pkgs = pkgsForEach.${system};
+          toolchain = toolchainFor system;
         in
         {
           atuin = pkgs.callPackage ./atuin.nix {
-            rustPlatform =
-              let
-                toolchain = fenix.packages.${system}.fromToolchainFile {
-                  file = ./rust-toolchain.toml;
-                  sha256 = "sha256-h+t2xTBz5yt2YIO+1VMIIGlCU7gyp2LYOFvaV1nwOXU=";
-                };
-              in
-              pkgs.makeRustPlatform {
-                cargo = toolchain;
-                rustc = toolchain;
-              };
+            rustPlatform = pkgs.makeRustPlatform {
+              cargo = toolchain;
+              rustc = toolchain;
+            };
           };
           default = self.packages.${system}.atuin;
         }
@@ -55,18 +56,17 @@
         system:
         let
           pkgs = pkgsForEach.${system};
-
+          toolchain = toolchainFor system;
         in
         {
-          devShells.default = self.packages.${system}.default.overrideAttrs (super: {
-            nativeBuildInputs =
-              with pkgs;
-              super.nativeBuildInputs
-              ++ [
-                cargo-edit
-                clippy
-                rustfmt
-              ];
+          default = pkgs.mkShell {
+            inputsFrom = [ self.packages.${system}.atuin ];
+
+            packages = [
+              toolchain
+              pkgs.cargo-edit
+            ];
+
             RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
 
             shellHook = ''
@@ -82,7 +82,7 @@
                 echo >&2 "''${ATUIN_RECORD_STORE_PATH} already exists, you might want to double-check that"
               fi
             '';
-          });
+          };
         }
       );
 
