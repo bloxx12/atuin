@@ -35,10 +35,10 @@ rustPlatform.buildRustPackage {
 
   doCheck = false;
 
-  meta = with lib; {
+  meta = {
     description = "Replacement for a shell history which records additional commands context with optional encrypted synchronization between machines";
     homepage = "https://github.com/atuinsh/atuin";
-    license = licenses.mit;
+    license = lib.licenses.mit;
     mainProgram = "atuin";
   };
 }
