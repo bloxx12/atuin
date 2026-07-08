@@ -1,7 +1,6 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
     flake-compat = {
       url = "github:edolstra/flake-compat";
       flake = false;
@@ -15,59 +14,78 @@
     {
       self,
       nixpkgs,
-      flake-utils,
       fenix,
       ...
     }:
-    flake-utils.lib.eachDefaultSystem (
-      system:
-      let
-        pkgs = nixpkgs.outputs.legacyPackages.${system};
-      in
-      {
-        packages.atuin = pkgs.callPackage ./atuin.nix {
-          rustPlatform =
-            let
-              toolchain = fenix.packages.${system}.fromToolchainFile {
-                file = ./rust-toolchain.toml;
-                sha256 = "sha256-h+t2xTBz5yt2YIO+1VMIIGlCU7gyp2LYOFvaV1nwOXU=";
+    let
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "x86_64-darwin"
+        "aarch64-darwin"
+      ];
+      forEachSystem = nixpkgs.lib.genAttrs systems;
+      pkgsForEach = nixpkgs.legacyPackages;
+    in
+    {
+      packages = forEachSystem (
+        system:
+        let
+          pkgs = pkgsForEach.${system};
+        in
+        {
+          atuin = pkgs.callPackage ./atuin.nix {
+            rustPlatform =
+              let
+                toolchain = fenix.packages.${system}.fromToolchainFile {
+                  file = ./rust-toolchain.toml;
+                  sha256 = "sha256-h+t2xTBz5yt2YIO+1VMIIGlCU7gyp2LYOFvaV1nwOXU=";
+                };
+              in
+              pkgs.makeRustPlatform {
+                cargo = toolchain;
+                rustc = toolchain;
               };
-            in
-            pkgs.makeRustPlatform {
-              cargo = toolchain;
-              rustc = toolchain;
-            };
-        };
-        packages.default = self.outputs.packages.${system}.atuin;
+          };
+          default = self.packages.${system}.atuin;
+        }
+      );
 
-        devShells.default = self.packages.${system}.default.overrideAttrs (super: {
-          nativeBuildInputs =
-            with pkgs;
-            super.nativeBuildInputs
-            ++ [
-              cargo-edit
-              clippy
-              rustfmt
-            ];
-          RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
+      devShells = forEachSystem (
+        system:
+        let
+          pkgs = pkgsForEach.${system};
 
-          shellHook = ''
-            echo >&2 "Setting development database path"
-            export ATUIN_DB_PATH="/tmp/atuin_dev.db"
-            export ATUIN_RECORD_STORE_PATH="/tmp/atuin_records.db"
+        in
+        {
+          devShells.default = self.packages.${system}.default.overrideAttrs (super: {
+            nativeBuildInputs =
+              with pkgs;
+              super.nativeBuildInputs
+              ++ [
+                cargo-edit
+                clippy
+                rustfmt
+              ];
+            RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
 
-            if [ -e "''${ATUIN_DB_PATH}" ]; then
-              echo >&2 "''${ATUIN_DB_PATH} already exists, you might want to double-check that"
-            fi
+            shellHook = ''
+              echo >&2 "Setting development database path"
+              export ATUIN_DB_PATH="/tmp/atuin_dev.db"
+              export ATUIN_RECORD_STORE_PATH="/tmp/atuin_records.db"
 
-            if [ -e "''${ATUIN_RECORD_STORE_PATH}" ]; then
-              echo >&2 "''${ATUIN_RECORD_STORE_PATH} already exists, you might want to double-check that"
-            fi
-          '';
-        });
-      }
-    )
-    // {
+              if [ -e "''${ATUIN_DB_PATH}" ]; then
+                echo >&2 "''${ATUIN_DB_PATH} already exists, you might want to double-check that"
+              fi
+
+              if [ -e "''${ATUIN_RECORD_STORE_PATH}" ]; then
+                echo >&2 "''${ATUIN_RECORD_STORE_PATH} already exists, you might want to double-check that"
+              fi
+            '';
+          });
+        }
+      );
+
       overlays.default = final: prev: {
         inherit (self.packages.${final.stdenv.hostPlatform.system}) atuin;
       };
