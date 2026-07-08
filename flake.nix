@@ -86,7 +86,7 @@
         }
       );
 
-      overlays.default = final: prev: {
+      overlays.default = final: _prev: {
         inherit (self.packages.${final.stdenv.hostPlatform.system}) atuin;
       };
     };
