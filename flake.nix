@@ -89,5 +89,7 @@
       overlays.default = final: _prev: {
         inherit (self.packages.${final.stdenv.hostPlatform.system}) atuin;
       };
+
+      formatter = forEachSystem (system: pkgsForEach.${system}.nixfmt);
     };
 }
